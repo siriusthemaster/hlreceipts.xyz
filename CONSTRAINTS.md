@@ -27,7 +27,10 @@
 - portfolio.allTime má ~80 bodov na 535 dní. Peak equity je NEPOUŽITEĽNÉ.
 
 ## Netlify
-- Deploy VŽDY: netlify deploy --prod --site cf7c173b-fb1e-4865-b674-66d487ce0892
+- Deploy VŽDY: netlify deploy --prod --build --site cf7c173b-fb1e-4865-b674-66d487ce0892
+  --build je POVINNÝ. Bez neho nebeží @netlify/plugin-nextjs,
+  nevytvorí sa server handler a /api/og/v1/* vráti 404.
+  Deploy pritom hlási úspech. Tiché zlyhanie.
   Hostname v --site padá na Blobs 400. Iba kanonické UUID.
 - Netlify Edge IGNORUJE neznáme query parametre pri cache kľúči.
   Verziovanie cez ?v= nefunguje. Verzia patrí do CESTY.

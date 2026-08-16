@@ -97,9 +97,27 @@ API ju v odpovedi nedáva.
 
 - **Stránka: presne 2000.** Poradie **ASC** (najstaršie prvé) — opačne než `userFills`.
 - Stránkovanie: `startTime = posledný_time + 1`.
-- **Celkový strop sme NEDOSIAHLI.** C: 4 strany → **7785 unikátnych fillov**,
+- **Celkový strop sme NEDOSIAHLI.** C: 4 strany → **7796 unikátnych fillov**,
   5. strana prázdna. (Dokumentovaný strop 10 000 sme neprekročili.)
-- ⚠️ **~3 duplicitné `tid` na hranici každej strany** → **dedup podľa `tid` je povinný**.
+
+### ⚠️ OPRAVA (2026-08-16): `tid` NIE JE spoľahlivý dedup kľúč
+
+Pôvodne tu stálo „~3 duplicitné `tid` na hranici každej strany". **To bolo zle
+prečítané.** Overené na B aj C:
+
+| | B | C |
+|---|---:|---:|
+| fillov spolu (surovo) | 10 956 | 7 796 |
+| **skutočné duplicitné `tid` (≠0)** | **0** | **0** |
+| **fillov s `tid == 0`** | 0 | **12** |
+
+`tid == 0` je **SENTINEL, nie identifikátor**. Všetkých 12 fillov C s `tid=0` je
+navzájom **rozdielnych** (`dir: "Spot Dust Conversion"`, rôzny čas/coin/px/sz).
+Dedup podľa holého `tid` ich zlial do jedného a **ticho zahodil 11 reálnych fillov** —
+presne to spôsobilo pôvodné chybné číslo 7785.
+
+**Dedup kľúč musí byť kompozitný:** `tid` keď `tid != 0`, inak
+`time:coin:px:sz:dir:hash`. Viď `fillKey()` v `lib/hl.ts`.
 
 **Hĺbka histórie:** C až **2025-02-21**, t.j. 535 dní. A: 2026-07-07 → 2026-07-12.
 **Plná história účtu je dosiahnuteľná** — na rozdiel od `userFills`.

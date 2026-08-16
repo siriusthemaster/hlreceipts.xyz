@@ -1,0 +1,309 @@
+{
+ "ledger": [
+  {
+   "time": 1740138934990,
+   "hash": "0x2d625759742fe3b0144495d55b9e8dece3ed0c06af19a0d51c4727515d40b6b1",
+   "delta": {
+    "type": "deposit",
+    "usdc": "103315.99"
+   }
+  },
+  {
+   "time": 1740733570601,
+   "hash": "0xdf88a1d208f096cd862c10b915914f3bd2ae03da41607cf31d489d546724a181",
+   "delta": {
+    "type": "deposit",
+    "usdc": "14396.24"
+   }
+  },
+  {
+   "time": 1744145840756,
+   "hash": "0x701d625ff488fc584a8e04212adfac020144009165594222e1c39bee4cddb336",
+   "delta": {
+    "type": "spotTransfer",
+    "token": "UBTC",
+    "amount": "0.01998598",
+    "usdcValue": "1538.860502",
+    "user": "0x574bafce69d9411f662a433896e74e4f153096fa",
+    "destination": "0x64f4e14a603a6383f459e16f4781a6b30611dfb8",
+    "fee": "0.0",
+    "nativeTokenFee": "0.0",
+    "nonce": null,
+    "feeToken": ""
+   }
+  },
+  {
+   "time": 1744150951602,
+   "hash": "0x103b0b69da1e85c3500704212bd6ab02032a0066044ada77206fb661c5df2817",
+   "delta": {
+    "type": "spotTransfer",
+    "token": "UBTC",
+    "amount": "0.709644995",
+    "usdcValue": "54370.160936",
+    "user": "0x574bafce69d9411f662a433896e74e4f153096fa",
+    "destination": "0x64f4e14a603a6383f459e16f4781a6b30611dfb8",
+    "fee": "0.0",
+    "nativeTokenFee": "0.0",
+    "nonce": null,
+    "feeToken": ""
+   }
+  },
+  {
+   "time": 1744151390610,
+   "hash": "0x978a4cf3e48b381e5aab04212bec5202017b009a58727f9976ca3ea7bba990f3",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "55923.98",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1753438805898,
+   "hash": "0xdb51b754db83538eee04b50f5d3db20c10038f6c7d53a377b76c0238f6b8ee6c",
+   "delta": {
+    "type": "deposit",
+    "usdc": "10000.0"
+   }
+  },
+  {
+   "time": 1753438904317,
+   "hash": "0x7449db45af706204275aa650e99507ef677357c6d09b8df01d8250b131f30023",
+   "delta": {
+    "type": "deposit",
+    "usdc": "50000.0"
+   }
+  },
+  {
+   "time": 1753438944622,
+   "hash": "0x0f2a50bacaaf64e7d3ed14d37bf4c3809281ccfc9ad2ba9dd26fee4b7561a5ff",
+   "delta": {
+    "type": "deposit",
+    "usdc": "150000.0"
+   }
+  },
+  {
+   "time": 1753438989923,
+   "hash": "0xce587844ccca1422c925919903e364e4d4beb13dd7e271872ebfdddde29dfe6d",
+   "delta": {
+    "type": "deposit",
+    "usdc": "229372.58"
+   }
+  },
+  {
+   "time": 1753439064109,
+   "hash": "0x739aa00e01c2d4e4e923042833141d011d0040750ea6b76ed355ead4e037b8ba",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "0.08",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1755713800496,
+   "hash": "0xfd50940f6fe792e3634cdf7bbcad6f7e92042ce095e43e5675148d5cbf497f8c",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "499.0",
+    "nonce": 1755713516732000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1755714306047,
+   "hash": "0x34bb1124400de66ff8bc3b5493e8ab4ec0523ac1fda33e0ef2de56c968b13fa2",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "11499.0",
+    "nonce": 1755713981038000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1755883056713,
+   "hash": "0x2019932c730526ecfcd1aa885e18b423576fd09b3e5a37ee0e28773ce9b7d39f",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "19999.0",
+    "nonce": 1755882774576000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1755883475058,
+   "hash": "0xfae5854ba02f3233d564d0c88c523a872bc24ab4c05b65c29de1427abe25d694",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "73124.0",
+    "nonce": 1755883139831000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1755883838616,
+   "hash": "0xc4af3bfdab2b8cb5747f1fef44c15e27e4329abe959236c78300a66252c54121",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "73124.0",
+    "nonce": 1755883596025000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1755884161726,
+   "hash": "0x12b713e94cef0efe2326a8798bb0a089fecaf72cc8c230adb3cf5c5b39a5a968",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "14999.0",
+    "nonce": 1755883892735000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1755958532708,
+   "hash": "0xa405e46ec73086a7a57f042a1a219902040600546233a57947ce8fc186346092",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "10000.0",
+    "toPerp": false
+   }
+  },
+  {
+   "time": 1755958607936,
+   "hash": "0xaa80c3dabbb921f1abfa042a1a254e02034500c056bc40c34e496f2d7abcfbdc",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "250000.0",
+    "toPerp": false
+   }
+  },
+  {
+   "time": 1755991869134,
+   "hash": "0x4f9c78d2d2ed7dd35116042a20b77401f20090b86de09ca5f365242591e157bd",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "331000.0",
+    "toPerp": false
+   }
+  },
+  {
+   "time": 1756067923709,
+   "hash": "0xca42c5c6b25a6c2ecbbc042a2f9c0601a700ddac4d5d8b006e0b7119715e4619",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "44464.37",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756095497397,
+   "hash": "0x5185395f0a7d5b1bb9c5aaae3780a627dfb55e3c99d6c0b3166b3075c2b3c017",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "14999.0",
+    "nonce": 1756095184306000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1756333448198,
+   "hash": "0xf4a52cc567b80052f61e042a62f2260201cd00ab02bb1f25986dd81826bbda3d",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "47990.49",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756463474433,
+   "hash": "0x1963e7650641072f1add042a7c2a3a02033a004aa1442601bd2c92b7c544e119",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "52159.45",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756464533747,
+   "hash": "0xef5816b4cbeee07bf0d1042a7c5f7202028c009a66e1ff4d9320c2078ae2ba66",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "41585.28",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756464944129,
+   "hash": "0xeb661b6d6f7882a6ecdf042a7c739c0205db00530a7ba1788f2ec6c02e7c5c91",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "72481.14",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756465483737,
+   "hash": "0x8ee04a8b1f5f0f11905a042a7c8e3b012e006270ba522de332a8f5ddde52e8fc",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "165660.32",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756465635374,
+   "hash": "0x47531ad9f6095db948cc042a7c95c10201b300bf910c7c8beb1bc62cb50d37a3",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "82781.72",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1756465860469,
+   "hash": "0x49710707c23f9f064aea042a7ca1260202b500ed5d32bdd8ed39b25a813378f0",
+   "delta": {
+    "type": "accountClassTransfer",
+    "usdc": "44104.12",
+    "toPerp": true
+   }
+  },
+  {
+   "time": 1757237093246,
+   "hash": "0xa3e5ac3c8e0a3ffd64aa92eda89bd3fa423d7c36f93e8b4b046a5dc59b115219",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "36249.0",
+    "nonce": 1757236818105000,
+    "fee": "1.0"
+   }
+  },
+  {
+   "time": 1758449323977,
+   "hash": "0x68b6fa5509702a51a5926c4ffba63f350a4ab2eecd18322d0f6cc922ab4125d3",
+   "delta": {
+    "type": "withdraw",
+    "usdc": "19999.0",
+    "nonce": 1758449025650000,
+    "fee": "1.0"
+   }
+  }
+ ],
+ "liquidations": [
+  {
+   "time": 1760131031715,
+   "hash": "0x68fc7188e75246cb6a76042d3a639e017f00896e8255659d0cc51cdba65620b6",
+   "delta": {
+    "type": "liquidation",
+    "liquidatedNtlPos": "16284.535",
+    "accountValue": "218.907536",
+    "leverageType": "Cross",
+    "liquidatedPositions": [
+     {
+      "coin": "XPL",
+      "szi": "41050.0"
+     }
+    ]
+   }
+  }
+ ]
+}

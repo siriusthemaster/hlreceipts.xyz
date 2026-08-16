@@ -23,6 +23,7 @@ function raw(fills: HlFill[], over: Partial<RawAccount> = {}): RawAccount {
       oldestTs: sorted.length ? sorted[0].time : null,
       newestTs: sorted.length ? sorted[sorted.length - 1].time : null,
       pageCount: 1,
+      hitPageCap: false,
     },
     funding: { funding: [], pageCount: 1, fundingComplete: true },
     ledger: { ledger: [], pageCount: 1, complete: true },

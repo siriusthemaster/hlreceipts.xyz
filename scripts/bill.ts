@@ -5,6 +5,7 @@
  */
 import { fetchAccount } from '../lib/hl'
 import { computeBill } from '../lib/bill'
+import { setBill, billKey } from '../lib/cache'
 
 async function main() {
   const address = process.argv[2]
@@ -24,6 +25,17 @@ async function main() {
   )
 
   const bill = computeBill(raw)
+
+  // Zápis do cache je best-effort: bez UPSTASH_* premenných je to no-op a CLI
+  // dobehne rovnako. OG route číta výhradne odtiaľto, nikdy nepočíta sama.
+  await setBill(address, bill)
+  const cached = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  console.error(
+    cached
+      ? `[bill] uložené do cache: ${billKey(address)} (TTL 86400s)`
+      : `[bill] cache PRESKOČENÁ — UPSTASH_REDIS_REST_URL/TOKEN nie sú nastavené`,
+  )
+
   console.log(JSON.stringify(bill, null, 2))
 }
 

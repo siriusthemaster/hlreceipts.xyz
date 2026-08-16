@@ -78,6 +78,8 @@ export interface FillsResult {
   oldestTs: number | null
   newestTs: number | null
   pageCount: number
+  /** true = stránkovanie skončilo na strope, nie na konci dát -> história je neúplná. */
+  hitPageCap: boolean
 }
 
 export interface FundingResult {
@@ -179,6 +181,7 @@ export async function fetchAllFills(
   const byKey = new Map<string, HlFill>()
   let startTime = 0
   let pageCount = 0
+  let reachedEnd = false
 
   while (pageCount < MAX_PAGES) {
     const page = await info<HlFill[]>(
@@ -186,13 +189,19 @@ export async function fetchAllFills(
       opts,
     )
     pageCount++
-    if (!Array.isArray(page) || page.length === 0) break
+    if (!Array.isArray(page) || page.length === 0) {
+      reachedEnd = true
+      break
+    }
 
     for (const fill of page) byKey.set(fillKey(fill), fill)
 
     const lastTs = Number(page[page.length - 1].time)
     // Stránka kratšia než strop = koniec histórie.
-    if (page.length < FILLS_PAGE) break
+    if (page.length < FILLS_PAGE) {
+      reachedEnd = true
+      break
+    }
     // Poistka: ak sa čas neposunie, ďalšia iterácia by vrátila to isté donekonečna.
     if (lastTs + 1 <= startTime) break
     startTime = lastTs + 1
@@ -204,6 +213,7 @@ export async function fetchAllFills(
     oldestTs: fills.length ? fills[0].time : null,
     newestTs: fills.length ? fills[fills.length - 1].time : null,
     pageCount,
+    hitPageCap: !reachedEnd,
   }
 }
 

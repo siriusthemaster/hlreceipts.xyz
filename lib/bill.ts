@@ -16,6 +16,16 @@ const OTHER_SHARE_THRESHOLD = 0.01
 /** Pod touto equity je pomer cost/equity nezmyselne veľký -> radšej null. */
 const MIN_EQUITY_FOR_RATIO = 100
 
+/**
+ * SPOT markery. Overené na adrese C: `dir ∈ SPOT_DIRS` a `coin` začínajúci '@'
+ * označujú PRESNE tú istú množinu (1493 = 1493, nula nesúladov). Testujeme oboje
+ * cez OR — ak by sa v budúcnosti rozišli, chyba pôjde smerom VYLÚČIŤ, čo je pri
+ * menovateľi bezpečnejšie než nafúknuť objem.
+ */
+const SPOT_DIRS = new Set(['Buy', 'Sell', 'Spot Dust Conversion'])
+const isSpot = (f: HlFill): boolean =>
+  SPOT_DIRS.has(f.dir) || f.coin.startsWith('@')
+
 export interface BuilderRateBucket {
   /** bp sadzba zaokrúhlená na 1 desatinné; null = zlúčený zvyšok "other". */
   bp: number | null
@@ -51,6 +61,10 @@ export interface Bill {
   /** Fily, ktoré NIE SÚ v žiadnom peňažnom súčte, lebo feeToken !== USDC. */
   excludedFillCount: number
   excludedTokens: string[]
+  /** USDC fily vynechané z volumeTraded, lebo sú SPOT, nie perps. */
+  excludedVolumeFillCount: number
+  /** Fily s builderFee, ktoré nešli do ladderu (notional <= 0). Bráni deleniu nulou. */
+  builderRatesExcludedFills: number
 
   // ── likvidácie (RECON.md D3) ────────────────────────────────────────────
   liquidationCount: number
@@ -77,6 +91,12 @@ export interface Bill {
   /** false = funding je len čiastočný, totalCost je PODHODNOTENÝ. Do UI! */
   fundingComplete: boolean
   ledgerComplete: boolean
+  /**
+   * true = totalCost je DOLNÁ HRANICA, nie presné číslo. Nastane keď funding
+   * nebol dostránkovaný ALEBO stránkovanie fillov skončilo na strope.
+   * MUSÍ ísť až na kartu — inak by sme podhodnotenú sumu vydávali za presnú.
+   */
+  isFloor: boolean
 }
 
 const n = (v: unknown): number => {
@@ -100,12 +120,17 @@ export function computeBill(raw: RawAccount): Bill {
   let appFees = 0
   let volumeTraded = 0
   let realizedPnl = 0
+  let excludedVolumeFillCount = 0
   for (const f of usdc) {
     const bf = f.builderFee === undefined ? 0 : n(f.builderFee)
     hlFees += n(f.fee) - bf
     appFees += bf
-    volumeTraded += notional(f)
     realizedPnl += n(f.closedPnl)
+    // volumeTraded je IBA USDC PERPS. costVsVolumeBp je záložný menovateľ pre
+    // vyhorené účty (equity < 100) a spot by ho zriedil: na adrese C tvoril spot
+    // 9.99 % objemu, takže pomer vychádzal o desatinu nižší, než mal.
+    if (isSpot(f)) excludedVolumeFillCount++
+    else volumeTraded += notional(f)
   }
 
   // ── builder rate ladder ────────────────────────────────────────────────
@@ -114,10 +139,18 @@ export function computeBill(raw: RawAccount): Bill {
   // preto nikdy nepomenúvame — zoskupujeme výhradne podľa sadzby.
   const rateGroups = new Map<number, { volume: number; fillCount: number }>()
   let builderVolume = 0
+  let builderRatesExcludedFills = 0
   for (const f of usdc) {
     if (f.builderFee === undefined) continue
     const nt = notional(f)
-    if (nt <= 0) continue
+    // Delenie nulou by dalo Infinity/NaN a to by sa dostalo až na kartu.
+    // Vo vzorke A/B/C taký fill NEEXISTUJE (0 z 18 768), ale sentinel trieda
+    // ako Spot Dust Conversion ukazuje, že degenerované záznamy API vracia —
+    // preto sa počítajú, nie ticho preskakujú.
+    if (!(nt > 0)) {
+      builderRatesExcludedFills++
+      continue
+    }
     const bp = Math.round((n(f.builderFee) / nt) * 10000 * 10) / 10
     const g = rateGroups.get(bp) ?? { volume: 0, fillCount: 0 }
     g.volume += nt
@@ -211,6 +244,8 @@ export function computeBill(raw: RawAccount): Bill {
     builderRates,
     excludedFillCount: excluded.length,
     excludedTokens,
+    excludedVolumeFillCount,
+    builderRatesExcludedFills,
     liquidationCount,
     currentEquity,
     costVsEquity,
@@ -227,5 +262,6 @@ export function computeBill(raw: RawAccount): Bill {
     pageCount: raw.fills.pageCount,
     fundingComplete: raw.funding.fundingComplete,
     ledgerComplete: raw.ledger.complete,
+    isFloor: !raw.funding.fundingComplete || raw.fills.hitPageCap,
   }
 }

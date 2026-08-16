@@ -1,4 +1,6 @@
 import { ImageResponse } from 'next/og'
+import { getBill } from '../../../../../lib/cache'
+import type { Bill } from '../../../../../lib/bill'
 
 export const runtime = 'edge'
 
@@ -7,84 +9,163 @@ export const runtime = 'edge'
 //
 // Bez toho by sa karta s nesprávnou sumou nedala opraviť: pôvodná odpoveď niesla
 // `immutable, max-age=31536000` a ?v=<ts> stále vracalo cache hit.
+//
+// TÁTO ROUTE NIKDY NEPOČÍTA BILL. Číta ho výhradne z cache; miss = generická
+// karta. Výpočet je desiatky sekúnd a stovky HTTP volaní — na edge nemá čo robiť.
 
-// SOGO tokens. Single source of truth for the card — no colour is written inline
-// below, so a palette change is a one-line edit here.
 const T = {
   bg: '#0A0B0D',
-  surface: '#121417',
-  hairline: '#24282E',
   text: '#E6E9EF',
   muted: '#9AA3AD',
-  hero: '#FF4D4D', // the headline cost figure
-  positive: '#00E28A', // RESERVED: "funding received" line ONLY, nowhere else
+  hairline: '#24282E',
+  hero: '#FF4D4D',
+  positive: '#00E28A', // IBA keď je funding čistý PRÍJEM
 } as const
 
-// s-maxage MUSÍ zostať v zhode s Redis TTL billu (86400). Ak sa jedno zmení,
-// zmeň aj druhé, inak karta prežije dáta, z ktorých vznikla.
+// s-maxage MUSÍ zostať v zhode s Redis TTL billu (86400, viď lib/cache.ts).
 const CACHE_CONTROL =
   'public, max-age=0, s-maxage=86400, stale-while-revalidate=604800'
 
-// Font is CO-LOCATED next to this route, not in /public. On the edge runtime there
-// is no fs and /public is not readable from disk; `new URL(..., import.meta.url)`
-// makes Next inline the .ttf into the edge bundle at build time, so the render
-// needs no network hop and cannot break when the domain changes.
-//
-// Tabular figures: JetBrains Mono is MONOSPACED, so every digit already occupies
-// an identical advance width. fontVariantNumeric is set as well, but the guarantee
-// comes from the font, not the property — satori implements only a subset of CSS
-// and may ignore it.
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+const usd = (v: number): string => {
+  const abs = Math.abs(v)
+  const digits = abs >= 1000 ? 0 : 2
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
+}
+
+const shortAddr = (a: string): string =>
+  a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a
+
+function denominatorLine(bill: Bill): string | null {
+  if (bill.costVsEquity !== null) {
+    return `${bill.costVsEquity.toFixed(1)}x your current equity`
+  }
+  if (bill.costVsVolumeBp !== null) {
+    return `${bill.costVsVolumeBp.toFixed(1)} bp of everything you traded`
+  }
+  return null
+}
+
+function footerLine(bill: Bill): string {
+  const since =
+    bill.windowStart !== null
+      ? (() => {
+          const d = new Date(bill.windowStart)
+          return ` since ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+        })()
+      : ''
+  let s = `${bill.fillCount.toLocaleString('en-US')} fills${since}`
+  if (bill.isFloor) s += ' · partial history, this is a floor'
+  if (bill.excludedFillCount > 0) {
+    s += ` · ${bill.excludedFillCount} spot fills in ${bill.excludedTokens.length} tokens excluded`
+  }
+  return s
+}
+
+function Column({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <div style={{ color: T.muted, fontSize: 20, letterSpacing: 1 }}>{label}</div>
+      <div style={{ color, fontSize: 40, marginTop: 10 }}>{value}</div>
+    </div>
+  )
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ address: string }> },
 ) {
-  // Address is accepted and reserved for the real bill lookup. Nothing is rendered
-  // from it yet — the displayed figure is still the hardcoded spike value.
-  await params
+  const { address } = await params
 
   const font = await fetch(
     new URL('./JetBrainsMono-Bold.ttf', import.meta.url),
   ).then((res) => res.arrayBuffer())
 
+  const bill = /^0x[0-9a-fA-F]{40}$/.test(address) ? await getBill(address) : null
+
+  const shell = {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    backgroundColor: T.bg,
+    fontFamily: 'JetBrains Mono',
+    padding: '56px 64px',
+  }
+
+  const opts = {
+    width: 1200,
+    height: 630,
+    fonts: [{ name: 'JetBrains Mono', data: font, style: 'normal' as const, weight: 700 as const }],
+    headers: { 'cache-control': CACHE_CONTROL },
+  }
+
+  // Cache miss: nič sa nepočíta, len pozvánka. Nikdy nevymýšľame čísla.
+  if (!bill) {
+    return new ImageResponse(
+      (
+        <div style={{ ...shell, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', color: T.muted, fontSize: 22, letterSpacing: 2 }}>
+            HLRECEIPTS.XYZ
+          </div>
+          <div style={{ display: 'flex', color: T.text, fontSize: 56, lineHeight: 1.25 }}>
+            paste an address at hlreceipts.xyz
+          </div>
+          <div style={{ display: 'flex', color: T.muted, fontSize: 22 }}>
+            {/^0x[0-9a-fA-F]{40}$/.test(address) ? shortAddr(address) : ''}
+          </div>
+        </div>
+      ),
+      opts,
+    )
+  }
+
+  const denom = denominatorLine(bill)
+  const fundingNetIncome = bill.fundingReceived > bill.fundingPaid
+
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: T.bg,
-          fontFamily: 'JetBrains Mono',
-        }}
-      >
+      <div style={{ ...shell, justifyContent: 'space-between' }}>
+        {/* hlavička */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: T.muted, fontSize: 22, letterSpacing: 2 }}>HLRECEIPTS.XYZ</div>
+          <div style={{ color: T.muted, fontSize: 22 }}>{shortAddr(address)}</div>
+        </div>
+
+        {/* hero + veta */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ color: T.hero, fontSize: 150, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+            {usd(bill.totalCost)}
+            {bill.isFloor ? '+' : ''}
+          </div>
+          {denom !== null ? (
+            <div style={{ color: T.text, fontSize: 34, marginTop: 18 }}>{denom}</div>
+          ) : null}
+        </div>
+
+        {/* štyri stĺpce */}
         <div
           style={{
-            color: T.hero,
-            fontSize: 160,
-            fontWeight: 700,
-            fontVariantNumeric: 'tabular-nums',
+            display: 'flex',
+            borderTop: `1px solid ${T.hairline}`,
+            paddingTop: 26,
           }}
         >
-          $47,312
+          <Column label="HYPERLIQUID TOOK" value={usd(bill.hlFees)} color={T.text} />
+          <Column label="THE APPS TOOK" value={usd(bill.appFees)} color={T.text} />
+          <Column
+            label={fundingNetIncome ? 'FUNDING RECEIVED' : 'FUNDING PAID'}
+            value={usd(fundingNetIncome ? bill.fundingReceived - bill.fundingPaid : bill.fundingPaid)}
+            color={fundingNetIncome ? T.positive : T.text}
+          />
+          <Column label="LIQUIDATIONS" value={String(bill.liquidationCount)} color={T.text} />
         </div>
+
+        {/* pätička */}
+        <div style={{ display: 'flex', color: T.muted, fontSize: 20 }}>{footerLine(bill)}</div>
       </div>
     ),
-    {
-      width: 1200,
-      height: 630,
-      fonts: [
-        {
-          name: 'JetBrains Mono',
-          data: font,
-          style: 'normal',
-          weight: 700,
-        },
-      ],
-      headers: {
-        'cache-control': CACHE_CONTROL,
-      },
-    },
+    opts,
   )
 }

@@ -93,10 +93,18 @@ export interface Bill {
   ledgerComplete: boolean
   /**
    * true = totalCost je DOLNÁ HRANICA, nie presné číslo. Nastane keď funding
-   * nebol dostránkovaný ALEBO stránkovanie fillov skončilo na strope.
+   * nebol dostránkovaný, stránkovanie fillov skončilo na strope, ALEBO nebol
+   * čistý fetch (retry / nepotvrdená krátka strana).
    * MUSÍ ísť až na kartu — inak by sme podhodnotenú sumu vydávali za presnú.
    */
   isFloor: boolean
+  /**
+   * false = niektorý fetch nebol čistý. Tiché skrátenie stránkovania raz
+   * podhodnotilo objem adresy C o 78 % bez jediného logu — preto to ide
+   * do Billu, nie do konzoly.
+   */
+  fetchClean: boolean
+  fetchRetries: number
 }
 
 const n = (v: unknown): number => {
@@ -111,6 +119,10 @@ export function computeBill(raw: RawAccount): Bill {
 
   // RECON.md D2 — do peňazí IBA USDC. Ostatné sa NEZAHADZUJÚ ticho, ale sa
   // spočítajú a vyexportujú, aby ich UI mohlo priznať.
+  //
+  // POZOR: toto nevylučuje iba spot. Vypadnú aj HIP-3 perpy na dexoch s
+  // non-USDC kolaterálom (2026-08-16: flx/vntl/km = USDH, hyna = USDE,
+  // cash = USDT0) — aj s ich builderFee. Viď CONSTRAINTS.md.
   const usdc = all.filter((f) => f.feeToken === 'USDC')
   const excluded = all.filter((f) => f.feeToken !== 'USDC')
   const excludedTokens = [...new Set(excluded.map((f) => f.feeToken))].sort()
@@ -262,6 +274,14 @@ export function computeBill(raw: RawAccount): Bill {
     pageCount: raw.fills.pageCount,
     fundingComplete: raw.funding.fundingComplete,
     ledgerComplete: raw.ledger.complete,
-    isFloor: !raw.funding.fundingComplete || raw.fills.hitPageCap,
+    isFloor:
+      !raw.funding.fundingComplete ||
+      raw.fills.hitPageCap ||
+      !raw.fills.fetchClean ||
+      !raw.funding.fetchClean,
+    fetchClean:
+      raw.fills.fetchClean && raw.funding.fetchClean && raw.ledger.fetchClean,
+    fetchRetries:
+      raw.fills.retries + raw.funding.retries + raw.ledger.retries,
   }
 }

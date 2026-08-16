@@ -22,8 +22,23 @@
   platí IBA na účte, ktorého sadzba sa v okne nezmenila. Engine sadzbu nikdy
   nepoužíva — sčítava skutočné `fee`.
 - nonUserFundingUpdates neexistuje (422). Správne: userNonFundingLedgerUpdates.
-- feeToken nie je vždy USDC. Non-USDC = spot, nedá sa preceniť.
-  Vylúč z peňazí, ale VŽDY priznaj počet a tokeny.
+- feeToken nie je vždy USDC. `feeToken` NIE JE rozlišovač spot/perp.
+  HIP-3 perp dexy majú vlastný kolaterál, takže `flx:TSLA` je perp
+  denominovaný v USDH — nie spot. HIP-3 aktívum sa pozná podľa
+  prefixu v `coin`: `coin.includes(':')`, tvar `{dex}:{COIN}`.
+  Non-USDC sa stále nedá preceniť: vylúč z peňazí, ale VŽDY priznaj
+  počet a tokeny.
+- MERANIE, NIE KONŠTANTA. Nasledujúce sa MUSÍ čítať z API za behu,
+  nikdy nezadrôtovať. Nové dexy pribúdajú a kolaterál sa môže zmeniť.
+  Merané na mainnete 2026-08-16 cez {"type":"perpDexs"}:
+    USDC:      xyz, para, mkts
+    USDH:      flx (Felix), vntl (Ventuals), km (Markets by Kinetiq)
+    USDE:      hyna (HyENA)
+    USDT0:     cash (dreamcash)
+    bez aktív: abcd
+    perpDexs[0] = null (first-party)
+    asset_id = 100000 + (perp_dex_index * 10000) + index_in_meta
+    coin tvar = {dex}:{COIN}
 - portfolio.allTime má ~80 bodov na 535 dní. Peak equity je NEPOUŽITEĽNÉ.
 
 ## Netlify

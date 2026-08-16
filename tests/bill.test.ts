@@ -24,9 +24,11 @@ function raw(fills: HlFill[], over: Partial<RawAccount> = {}): RawAccount {
       newestTs: sorted.length ? sorted[sorted.length - 1].time : null,
       pageCount: 1,
       hitPageCap: false,
+      fetchClean: true,
+      retries: 0,
     },
-    funding: { funding: [], pageCount: 1, fundingComplete: true },
-    ledger: { ledger: [], pageCount: 1, complete: true },
+    funding: { funding: [], pageCount: 1, fundingComplete: true, fetchClean: true, retries: 0 },
+    ledger: { ledger: [], pageCount: 1, complete: true, fetchClean: true, retries: 0 },
     state: { marginSummary: { accountValue: '0', totalNtlPos: '0', totalRawUsd: '0', totalMarginUsed: '0' }, withdrawable: '0', assetPositions: [], time: 0 },
     ...over,
   }
@@ -154,7 +156,7 @@ describe('likvidácie — iba z ledgeru (RECON D3)', () => {
   it('počíta delta.type === "liquidation", nie fill.liquidation', () => {
     const bill = computeBill(
       raw(A_FILLS, {
-        ledger: { ledger: C_LEDGER.ledger, pageCount: 1, complete: true },
+        ledger: { ledger: C_LEDGER.ledger, pageCount: 1, complete: true, fetchClean: true, retries: 0 },
       }),
     )
     expect(bill.liquidationCount).toBe(
@@ -195,6 +197,8 @@ describe('funding (RECON D4)', () => {
           ],
           pageCount: 1,
           fundingComplete: false,
+          fetchClean: true,
+          retries: 0,
         },
       }),
     )
@@ -213,6 +217,8 @@ describe('funding (RECON D4)', () => {
           ],
           pageCount: 1,
           fundingComplete: true,
+          fetchClean: true,
+          retries: 0,
         },
       }),
     )

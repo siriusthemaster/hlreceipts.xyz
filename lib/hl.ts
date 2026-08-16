@@ -87,6 +87,12 @@ export interface FillsResult {
   pageCount: number
   /** true = stránkovanie skončilo na strope, nie na konci dát -> história je neúplná. */
   hitPageCap: boolean
+  /**
+   * false = fetch NEBOL čistý: prebehla retry, potvrdzovanie krátkej strany
+   * zlyhalo, alebo sa narazilo na strop. Číslo je vtedy DOLNÁ HRANICA.
+   */
+  fetchClean: boolean
+  retries: number
 }
 
 export interface FundingResult {
@@ -94,12 +100,16 @@ export interface FundingResult {
   pageCount: number
   /** false = nedostránkovali sme až po newestTs; MUSÍ ísť do UI, nie len do logu. */
   fundingComplete: boolean
+  fetchClean: boolean
+  retries: number
 }
 
 export interface LedgerResult {
   ledger: HlLedgerEntry[]
   pageCount: number
   complete: boolean
+  fetchClean: boolean
+  retries: number
 }
 
 // ── transport ───────────────────────────────────────────────────────────────
@@ -156,6 +166,76 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+// ── potvrdzované stránkovanie ───────────────────────────────────────────────
+//
+// TICHÉ SKRÁTENIE. Pôvodne všetky tri fetchery končili na `page.length < SIZE`
+// a brali to za dôkaz konca dát. Nie je. Reálne pozorované 2026-08-16: API
+// vrátilo HTTP 200 so skrátenou stranou uprostred histórie, cyklus skončil po
+// prvej strane a volumeTraded adresy C vyšiel na 22 % skutočnosti
+// (6 046 755 namiesto 27 100 652). Žiadna chyba, žiadny log — len o 78 % nižšie
+// číslo na účtenke.
+//
+// Krátka ANI prázdna strana teda nie je dôkaz konca; musí sa POTVRDIŤ:
+//   · zopakuj request (max 3x, exponenciálny backoff)
+//   · ak opakovanie vráti VIAC záznamov, ber ich a pokračuj
+//   · koniec je až vtedy, keď 3 pokusy po sebe vrátia ROVNAKÝ počet
+//   · chyba po vyčerpaní retry = fetch ZLYHAL (info() hodí), nikdy nie
+//     "hotovo s tým, čo mám"
+
+const CONFIRM_ATTEMPTS = 3
+
+interface ConfirmedPage<T> {
+  items: T[]
+  /** Koľko dodatočných requestov padlo (potvrdzovanie stojí 3 aj v ideálnom prípade). */
+  retries: number
+  /**
+   * true = opakovanie vrátilo VIAC záznamov než prvý pokus, čiže prvá odpoveď
+   * bola SKRÁTENÁ. Toto je jediný dôkaz reálneho tichého skrátenia — na rozdiel
+   * od potvrdzovacích retry, ktoré nastanú aj pri úplne zdravom fetchi.
+   */
+  recovered: boolean
+  /** true = koniec dát POTVRDENÝ 3 zhodnými pokusmi. */
+  confirmedEnd: boolean
+}
+
+async function fetchConfirmedPage<T>(
+  body: Record<string, unknown>,
+  size: number,
+  opts: { fetchImpl?: typeof fetch },
+): Promise<ConfirmedPage<T>> {
+  const first = await info<T[]>(body, opts)
+  const firstArr = Array.isArray(first) ? first : []
+  // Plná strana je sama o sebe dôkaz, že dáta pokračujú — netreba potvrdzovať.
+  if (firstArr.length >= size) {
+    return { items: firstArr, retries: 0, recovered: false, confirmedEnd: false }
+  }
+
+  let best = firstArr
+  let sameInARow = 1
+  let retries = 0
+  let recovered = false
+  for (let i = 0; i < CONFIRM_ATTEMPTS && sameInARow < CONFIRM_ATTEMPTS; i++) {
+    await sleep(400 * 2 ** i)
+    retries++
+    const again = await info<T[]>(body, opts)
+    const arr = Array.isArray(again) ? again : []
+    if (arr.length > best.length) {
+      best = arr
+      sameInARow = 1
+      recovered = true // prvá odpoveď bola skrátená — toto je ten tichý bug
+      if (best.length >= size) break // strana je plná -> pokračuj v stránkovaní
+    } else {
+      sameInARow++
+    }
+  }
+  return {
+    items: best,
+    retries,
+    recovered,
+    confirmedEnd: best.length < size && sameInARow >= CONFIRM_ATTEMPTS,
+  }
+}
+
 // ── fills ───────────────────────────────────────────────────────────────────
 
 /**
@@ -189,26 +269,38 @@ export async function fetchAllFills(
   let startTime = 0
   let pageCount = 0
   let reachedEnd = false
+  let retries = 0
+  let recovered = false
+  let unconfirmed = false
 
   while (pageCount < MAX_PAGES) {
-    const page = await info<HlFill[]>(
+    const r = await fetchConfirmedPage<HlFill>(
       { type: 'userFillsByTime', user: address, startTime },
+      FILLS_PAGE,
       opts,
     )
     pageCount++
-    if (!Array.isArray(page) || page.length === 0) {
-      reachedEnd = true
-      break
-    }
+    retries += r.retries
+    if (r.recovered) recovered = true
+    const page = r.items
 
     for (const fill of page) byKey.set(fillKey(fill), fill)
 
-    const lastTs = Number(page[page.length - 1].time)
-    // Stránka kratšia než strop = koniec histórie.
-    if (page.length < FILLS_PAGE) {
-      reachedEnd = true
+    if (page.length === 0) {
+      // Prázdna strana je koniec IBA keď to potvrdili 3 zhodné pokusy.
+      if (r.confirmedEnd) reachedEnd = true
+      else unconfirmed = true
       break
     }
+    if (page.length < FILLS_PAGE) {
+      if (r.confirmedEnd) {
+        reachedEnd = true
+        break
+      }
+      // Nepotvrdená krátka strana: neukončuj cyklus, posuň sa a skús ďalej.
+      unconfirmed = true
+    }
+    const lastTs = Number(page[page.length - 1].time)
     // Poistka: ak sa čas neposunie, ďalšia iterácia by vrátila to isté donekonečna.
     if (lastTs + 1 <= startTime) break
     startTime = lastTs + 1
@@ -221,6 +313,8 @@ export async function fetchAllFills(
     newestTs: fills.length ? fills[fills.length - 1].time : null,
     pageCount,
     hitPageCap: !reachedEnd,
+    fetchClean: reachedEnd && !recovered && !unconfirmed,
+    retries,
   }
 }
 
@@ -249,15 +343,23 @@ export async function fetchAllFunding(
   let startTime = 0
   let pageCount = 0
   let reachedEnd = false
+  let retries = 0
+  let recovered = false
+  let unconfirmed = false
 
   while (pageCount < MAX_PAGES) {
-    const page = await info<HlFunding[]>(
+    const r = await fetchConfirmedPage<HlFunding>(
       { type: 'userFunding', user: address, startTime },
+      FUNDING_PAGE,
       opts,
     )
     pageCount++
-    if (!Array.isArray(page) || page.length === 0) {
-      reachedEnd = true
+    retries += r.retries
+    if (r.recovered) recovered = true
+    const page = r.items
+    if (page.length === 0) {
+      if (r.confirmedEnd) reachedEnd = true
+      else unconfirmed = true
       break
     }
 
@@ -273,8 +375,11 @@ export async function fetchAllFunding(
 
     const lastTs = Number(page[page.length - 1].time)
     if (page.length < FUNDING_PAGE) {
-      reachedEnd = true
-      break
+      if (r.confirmedEnd) {
+        reachedEnd = true
+        break
+      }
+      unconfirmed = true
     }
     if (newestTs !== null && lastTs >= newestTs) {
       reachedEnd = true
@@ -285,7 +390,13 @@ export async function fetchAllFunding(
   }
 
   const funding = [...byKey.values()].sort((a, b) => a.time - b.time)
-  return { funding, pageCount, fundingComplete: reachedEnd }
+  return {
+    funding,
+    pageCount,
+    fundingComplete: reachedEnd && !unconfirmed,
+    fetchClean: reachedEnd && !recovered && !unconfirmed,
+    retries,
+  }
 }
 
 // ── ledger ──────────────────────────────────────────────────────────────────
@@ -304,15 +415,23 @@ export async function fetchLedger(
   let startTime = 0
   let pageCount = 0
   let complete = false
+  let retries = 0
+  let recovered = false
+  let unconfirmed = false
 
   while (pageCount < MAX_PAGES) {
-    const page = await info<HlLedgerEntry[]>(
+    const r = await fetchConfirmedPage<HlLedgerEntry>(
       { type: 'userNonFundingLedgerUpdates', user: address, startTime },
+      FUNDING_PAGE,
       opts,
     )
     pageCount++
-    if (!Array.isArray(page) || page.length === 0) {
-      complete = true
+    retries += r.retries
+    if (r.recovered) recovered = true
+    const page = r.items
+    if (page.length === 0) {
+      if (r.confirmedEnd) complete = true
+      else unconfirmed = true
       break
     }
 
@@ -320,15 +439,24 @@ export async function fetchLedger(
 
     const lastTs = Number(page[page.length - 1].time)
     if (page.length < FUNDING_PAGE) {
-      complete = true
-      break
+      if (r.confirmedEnd) {
+        complete = true
+        break
+      }
+      unconfirmed = true
     }
     if (lastTs + 1 <= startTime) break
     startTime = lastTs + 1
   }
 
   const ledger = [...byKey.values()].sort((a, b) => a.time - b.time)
-  return { ledger, pageCount, complete }
+  return {
+    ledger,
+    pageCount,
+    complete: complete && !unconfirmed,
+    fetchClean: complete && !recovered && !unconfirmed,
+    retries,
+  }
 }
 
 // ── state ───────────────────────────────────────────────────────────────────

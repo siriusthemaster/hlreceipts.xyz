@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "bill": "tsx scripts/bill.ts",
+    "bill": "tsx --env-file=.env.local scripts/bill.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { getBill } from '../../../../../lib/cache'
+import { getBill, getLastBill } from '../../../../../lib/cache'
 import type { Bill } from '../../../../../lib/bill'
 
 export const runtime = 'edge'
@@ -28,11 +28,22 @@ const CACHE_CONTROL =
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-const usd = (v: number): string => {
-  const abs = Math.abs(v)
-  const digits = abs >= 1000 ? 0 : 2
-  return `$${v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`
+/**
+ * Formátovanie BEZ toLocaleString: edge runtime nemá zaručené plné ICU a
+ * `toLocaleString('en-US', …)` sa tam správa inak než v Node. Ručné oddeľovanie
+ * tisícov je deterministické všade.
+ */
+const group = (intPart: string): string =>
+  intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+const num = (v: number, digits: number): string => {
+  const neg = v < 0
+  const fixed = Math.abs(v).toFixed(digits)
+  const [i, d] = fixed.split('.')
+  return `${neg ? '-' : ''}${group(i)}${d ? `.${d}` : ''}`
 }
+
+const usd = (v: number): string => `$${num(v, Math.abs(v) >= 1000 ? 0 : 2)}`
 
 const shortAddr = (a: string): string =>
   a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a
@@ -55,7 +66,7 @@ function footerLine(bill: Bill): string {
           return ` since ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
         })()
       : ''
-  let s = `${bill.fillCount.toLocaleString('en-US')} fills${since}`
+  let s = `${group(String(bill.fillCount))} fills${since}`
   if (bill.isFloor) s += ' · partial history, this is a floor'
   if (bill.excludedFillCount > 0) {
     s += ` · ${bill.excludedFillCount} spot fills in ${bill.excludedTokens.length} tokens excluded`
@@ -82,7 +93,11 @@ export async function GET(
     new URL('./JetBrainsMono-Bold.ttf', import.meta.url),
   ).then((res) => res.arrayBuffer())
 
-  const bill = /^0x[0-9a-fA-F]{40}$/.test(address) ? await getBill(address) : null
+  // Poradie je záväzné: čerstvý -> posledný známy -> až potom pozvánka.
+  // Adresa, ktorá už raz bola vypočítaná, sa na pozvánku nesmie vrátiť nikdy;
+  // po expirácii TTL ukáže staršie číslo, nie prázdnu kartu.
+  const valid = /^0x[0-9a-fA-F]{40}$/.test(address)
+  const bill = valid ? ((await getBill(address)) ?? (await getLastBill(address))) : null
 
   const shell = {
     width: '100%',
@@ -135,9 +150,13 @@ export async function GET(
 
         {/* hero + veta */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/*
+            JEDEN textový potomok, zámerne. satori vyžaduje explicitné
+            display:flex na každom elemente s VIAC než jedným dieťaťom; dva
+            súrodenecké reťazce tu zhodili celý render na HTTP 500.
+          */}
           <div style={{ color: T.hero, fontSize: 150, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-            {usd(bill.totalCost)}
-            {bill.isFloor ? '+' : ''}
+            {`${usd(bill.totalCost)}${bill.isFloor ? '+' : ''}`}
           </div>
           {denom !== null ? (
             <div style={{ color: T.text, fontSize: 34, marginTop: 18 }}>{denom}</div>

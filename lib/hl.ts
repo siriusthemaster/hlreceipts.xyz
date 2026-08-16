@@ -12,8 +12,15 @@ const INFO_URL = 'https://api.hyperliquid.xyz/info'
 const FILLS_PAGE = 2000
 /** RECON.md §3a: stránka userFunding je presne 500. */
 const FUNDING_PAGE = 500
-/** Poistka proti nekonečnému cyklu; 40 × 2000 = 80k fillov, ďaleko nad realitou. */
-const MAX_PAGES = 40
+/**
+ * Poistka proti nekonečnému cyklu — NÁŠ strop, nie limit Hyperliquidu.
+ *
+ * Pôvodných 40 bolo primalo: adresa B narazila na strop pri fundingu (40 strán
+ * × 500 = 20 000 záznamov) a dostala isFloor=true, hoci dáta pokračovali.
+ * isFloor je poistka, nie cieľ — kde sa dá dôjsť do konca, chceme presné číslo.
+ * 200 × 500 = 100k funding záznamov a 200 × 2000 = 400k fillov.
+ */
+const MAX_PAGES = 200
 
 // ── typy presne podľa reálnych odpovedí (RECON.md §1) ───────────────────────
 

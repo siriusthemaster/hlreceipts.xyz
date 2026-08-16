@@ -253,6 +253,66 @@ peňaženkou A, `Σ fee` musí byť **4.751401 USDC** za 2026-07-07 → 2026-07-
 
 ---
 
+## FEE SEMANTICS — PROVEN
+
+Overené 2026-08-16 na A, B, C. Bránový test pred launchom.
+
+### Publikované sadzby (`userFees`, adresa A)
+
+```
+cross 0.00045 = 4.5 bp     add 0.00015 = 1.5 bp
+spotCross 0.0007            spotAdd 0.0004
+referralDiscount 0.04       activeStakingDiscount 0.0
+```
+
+### Hypotéza 4.320 bp == 4.5 bp × 0.96 — POTVRDENÁ
+
+| adresa | typ | crossed | n | nameraný bp | publikovaný bp | odchýlka |
+|---|---|---|---:|---:|---:|---:|
+| **A** | perp | true | **16** | **4.3200** | **4.3200** | **−0.0000** ✅ |
+
+`4.5 × (1 − 0.04) = 4.32`. Sedí na **všetkých 16 filloch**, odchýlka nula.
+`referralDiscount: 0.04` je doslova v odpovedi API — nie je to dopočítané.
+
+**Sémantika `fee` je tým dokázaná:** `fee = notional × sadzba_HL_v_tom_čase`, a
+`builderFee` je v `fee` ZAHRNUTÝ (4.320 + 2.500 = 6.820 na každom fille). CSV
+export netreba.
+
+### Prečo B a C proti DNEŠNEJ sadzbe nesedia — a prečo to nie je chyba
+
+`userFees` je **snímka AKTUÁLNEHO stavu**, nie historický cenník. Sadzba sa v čase
+mení (VIP tier podľa objemu, staking a referral zľavy). Meranie po mesiacoch to
+ukazuje ako **čisté plató, nie šum**:
+
+| C — perp taker | medián bp |
+|---|---:|
+| 2025-02 → 2025-04 | **3.5000** |
+| 2025-05 → 2025-07 | **3.6000** |
+| 2025-08 → 2026-06 | **4.5000** |
+
+B: historicky **0.4200** bp, dnes publikuje **2.1000** bp.
+
+Preto sa per-fill kontrola proti publikovanej sadzbe dá spraviť **iba na účte,
+ktorého sadzba sa v okne nezmenila** — čo A (5 dní) spĺňa a B ani C nie.
+
+> **Toto NEOVPLYVŇUJE žiadne číslo, ktoré engine počíta.** `computeBill` nikdy
+> nepoužíva sadzbu — sčítava skutočné `fee` z API. Neplatná je len metóda
+> krížovej kontroly na účtoch s meniacou sa sadzbou, nie výpočet.
+
+### Kontrola proti falošnej zhode
+
+Zadanie žiadalo overiť, či na všetkých troch nevyjde IDENTICKÁ sadzba (to by
+znamenalo, že počítame nezmysel). **Nevyšla:** A 4.3200 · B 0.4200 · C 3.5000→4.5000.
+Tri rôzne účty dali tri rôzne sadzby, každú zodpovedajúcu vlastnému tieru a zľavám.
+
+### Čo z toho NEVIEME
+
+- **Historickú sadzbu k danému dňu.** API ju nevystavuje, dá sa len spätne
+  odvodiť z `fee / notional` — čo je presne to, čo engine implicitne robí tým,
+  že sadzbu vôbec nepoužíva.
+
+---
+
 ## ČO VIEME TVRDIŤ PRAVDIVO
 
 ### ✅ Za CELÝ život účtu (`userFillsByTime` od 0, dedup podľa `tid`)

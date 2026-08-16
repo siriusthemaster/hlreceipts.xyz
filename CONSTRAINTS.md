@@ -10,6 +10,17 @@
   nie priradenie. Appky sa smú len AGREGOVAŤ, nikdy pomenovať.
 - Vlastná likvidácia NIE JE vo userFills. Iba userNonFundingLedgerUpdates,
   delta.type == "liquidation". fill.liquidation.liquidatedUser je PROTISTRANA.
+  `dir` môže obsahovať "Liquidated Cross Long" a podobné tvary. Je to
+  NEZÁVISLÁ KRÍŽOVÁ KONTROLA vlastnej likvidácie (na C: 1 fill = 1 záznam
+  v ledgeri), ale ZDROJ PRAVDY zostáva ledger. Nikdy nepočítaj likvidácie z dir.
+- SPOT sa pozná: dir ∈ {Buy, Sell, Spot Dust Conversion} ALEBO coin začína '@'.
+  Na C oba signály označili PRESNE tú istú množinu (1493 = 1493, nula nesúladov).
+  Testuje sa cez OR — prípadný rozchod tak pôjde smerom VYLÚČIŤ, čo je pri
+  menovateli bezpečnejšie než nafúknuť objem.
+- `userFees` je snímka DNEŠKA, nie historický cenník. Sadzba sa v čase mení
+  (VIP tier, staking, referral). Per-fill kontrola proti publikovanej sadzbe
+  platí IBA na účte, ktorého sadzba sa v okne nezmenila. Engine sadzbu nikdy
+  nepoužíva — sčítava skutočné `fee`.
 - nonUserFundingUpdates neexistuje (422). Správne: userNonFundingLedgerUpdates.
 - feeToken nie je vždy USDC. Non-USDC = spot, nedá sa preceniť.
   Vylúč z peňazí, ale VŽDY priznaj počet a tokeny.

@@ -137,7 +137,11 @@ export async function GET(
   }
 
   const denom = denominatorLine(bill)
-  const fundingNetIncome = bill.fundingReceived > bill.fundingPaid
+  // FUNDING NET, nie FUNDING PAID. Karta predtým ukazovala len zaplatenú stranu,
+  // takže na C sedelo 9257 + 0 + 51137 = 60394, ale hero bolo 52594 — rozdiel
+  // 7800 bol skrytý fundingReceived. Súčet stĺpcov teraz musí dať hero.
+  const fundingNet = bill.fundingReceived - bill.fundingPaid
+  const fundingIsIncome = fundingNet > 0
 
   return new ImageResponse(
     (
@@ -174,9 +178,9 @@ export async function GET(
           <Column label="HYPERLIQUID TOOK" value={usd(bill.hlFees)} color={T.text} />
           <Column label="THE APPS TOOK" value={usd(bill.appFees)} color={T.text} />
           <Column
-            label={fundingNetIncome ? 'FUNDING RECEIVED' : 'FUNDING PAID'}
-            value={usd(fundingNetIncome ? bill.fundingReceived - bill.fundingPaid : bill.fundingPaid)}
-            color={fundingNetIncome ? T.positive : T.text}
+            label="FUNDING NET"
+            value={`${fundingIsIncome ? '+' : ''}${usd(fundingNet)}`}
+            color={fundingIsIncome ? T.positive : T.text}
           />
           <Column label="LIQUIDATIONS" value={String(bill.liquidationCount)} color={T.text} />
         </div>

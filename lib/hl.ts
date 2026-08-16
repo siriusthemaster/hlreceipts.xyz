@@ -234,6 +234,12 @@ export async function fetchAllFills(
  * strán), vrátime fundingComplete=false a to ide až do UI — čiastočný funding
  * vydávaný za úplný by podhodnotil totalCost.
  */
+/** Kompozitný kľúč pre funding. `hash` je nepoužiteľný — samé nuly na každom zázname. */
+export function fundingKey(f: HlFunding): string {
+  const d = f.delta
+  return `${f.time}:${d.coin}:${d.usdc}:${d.szi}:${d.fundingRate}:${d.nSamples}`
+}
+
 export async function fetchAllFunding(
   address: string,
   newestTs: number | null,
@@ -255,8 +261,15 @@ export async function fetchAllFunding(
       break
     }
 
-    // userFunding nemá tid; kľúč = time+coin+usdc je stabilný a dostatočný.
-    for (const f of page) byKey.set(`${f.time}:${f.delta.coin}:${f.delta.usdc}`, f)
+    // userFunding nemá ŽIADNY identifikátor: `hash` je samé nuly na každom
+    // zázname (sentinel, tá istá trieda ako tid==0). Kľúč je preto plný kompozit.
+    //
+    // MERANÉ 2026-08-16 na A/B/C: duplikáty NEEXISTUJÚ. Surový počet == unikátnych
+    // pri všetkých troch variantoch kľúča (B 21 306, C 1 936), a duplikátov na
+    // hranici strany je NULA. Dedup je tu teda no-op — plný kompozit je poistka
+    // proti budúcej zmene, nie oprava existujúcej straty. Rovnosť surový==unikátny
+    // zároveň dokazuje, že kľúč nie je stratový.
+    for (const f of page) byKey.set(fundingKey(f), f)
 
     const lastTs = Number(page[page.length - 1].time)
     if (page.length < FUNDING_PAGE) {

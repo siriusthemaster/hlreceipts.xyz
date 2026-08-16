@@ -53,6 +53,77 @@ function getClient(): Redis | null {
   return client
 }
 
+// ── ochrana pred thundering herd ────────────────────────────────────────────
+//
+// Scenár: niekto tweetne whale adresu, 500 ľudí klikne naraz. Bez zámku by sa
+// spustilo 500 súbežných výpočtov TEJ ISTEJ adresy, každý po ~200 strán —
+// desaťtisíce HTTP volaní na Hyperliquid za sekundy.
+//
+// Dve nezávislé poistky:
+//   1. per-adresa zámok  — jednu adresu počíta naraz práve jeden request
+//   2. globálny strop    — celá appka počíta naraz najviac MAX_CONCURRENT adries
+// Request sa NIKDY neblokuje čakaním; keď neprejde, vráti "still counting".
+
+const LOCK_TTL_SECONDS = 180
+const CONCURRENCY_KEY = 'compute:concurrent'
+export const MAX_CONCURRENT = 5
+
+const lockKey = (address: string): string => `lock:${address.toLowerCase()}`
+
+/** true = zámok získaný, si zodpovedný za releaseLock v finally. */
+export async function acquireLock(address: string): Promise<boolean> {
+  const redis = getClient()
+  if (!redis) return true // bez Redisu nie je čo koordinovať — počítaj
+  try {
+    const res = await redis.set(lockKey(address), '1', {
+      nx: true,
+      ex: LOCK_TTL_SECONDS,
+    })
+    return res === 'OK'
+  } catch {
+    return true // cache nesmie zablokovať produkt
+  }
+}
+
+export async function releaseLock(address: string): Promise<void> {
+  const redis = getClient()
+  if (!redis) return
+  try {
+    await redis.del(lockKey(address))
+  } catch {
+    // TTL 180 s ho aj tak uvoľní
+  }
+}
+
+/** true = slot v globálnom strope získaný. Vždy páruj s releaseSlot v finally. */
+export async function acquireSlot(): Promise<boolean> {
+  const redis = getClient()
+  if (!redis) return true
+  try {
+    const n = await redis.incr(CONCURRENCY_KEY)
+    // Poistka proti zaseknutému počítadlu, keby proces zomrel pred DECR.
+    if (n === 1) await redis.expire(CONCURRENCY_KEY, LOCK_TTL_SECONDS)
+    if (n > MAX_CONCURRENT) {
+      await redis.decr(CONCURRENCY_KEY)
+      return false
+    }
+    return true
+  } catch {
+    return true
+  }
+}
+
+export async function releaseSlot(): Promise<void> {
+  const redis = getClient()
+  if (!redis) return
+  try {
+    const n = await redis.decr(CONCURRENCY_KEY)
+    if (n < 0) await redis.set(CONCURRENCY_KEY, 0)
+  } catch {
+    // expire ho vyčistí
+  }
+}
+
 async function read(key: string): Promise<Bill | null> {
   const redis = getClient()
   if (!redis) return null

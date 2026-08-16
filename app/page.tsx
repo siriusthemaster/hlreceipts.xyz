@@ -1,95 +1,64 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client'
 
-export default function Home() {
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { normalizeAddress } from '../lib/address'
+
+export default function Landing() {
+  const router = useRouter()
+  const [raw, setRaw] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    const addr = normalizeAddress(raw)
+    if (!addr) {
+      setErr('that does not look like a wallet address — 40 hex characters')
+      return
+    }
+    setErr(null)
+    setBusy(true)
+    router.push(`/${addr}`)
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <main className="wrap" style={{ paddingTop: 72 }}>
+      <div className="label" style={{ marginBottom: 28 }}>HLRECEIPTS.XYZ</div>
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+      <h1 style={{ fontSize: 27, lineHeight: 1.35, margin: '0 0 32px', fontWeight: 700 }}>
+        Everyone posts their PnL.<br />
+        <span className="muted">Nobody posts what it cost.</span>
+      </h1>
+
+      <form onSubmit={submit}>
+        <input
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          placeholder="0x… your Hyperliquid address"
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="text"
+          aria-label="Hyperliquid address"
+        />
+        <div style={{ height: 10 }} />
+        <button type="submit" disabled={busy}>
+          {busy ? 'COUNTING…' : 'SEE THE BILL'}
+        </button>
+      </form>
+
+      {err ? (
+        <div className="muted" style={{ marginTop: 14, fontSize: 13, color: 'var(--hero)' }}>
+          {err}
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+      ) : null}
+
+      <hr className="perf" style={{ marginTop: 40 }} />
+      <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+        built by @0xtomdev · from public Hyperliquid data · not financial advice
+      </div>
+    </main>
+  )
 }
